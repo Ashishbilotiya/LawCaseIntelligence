@@ -263,12 +263,38 @@ def db_write_node(state: LegalState) -> Dict[str, Any]:
         return {"db_record_id": None, "error": str(e)}
 
 
-# ── Node 7: RAG Ingestion ─────────────────────────────────────────
+# ── Node 7: RAG Ingestion (background) ────────────────────────────
+
+def _run_rag_ingestion_background(pdf_path: str, project_id: str, document_name: str,
+                                   doc_id: str, metadata: dict, socket_room: str) -> None:
+    """Run RAG ingestion in a daemon thread so the main pipeline can continue."""
+    import threading
+    def _worker():
+        try:
+            logger.info(f"[RAG-BG] Starting background ingestion for {document_name}")
+            from rag.pipelines.ingestion_pipeline import ingest_document
+            ingest_document(
+                pdf_path=pdf_path,
+                project_id=project_id,
+                doc_id=doc_id,
+                metadata=metadata or {},
+            )
+            logger.info(f"[RAG-BG] ✅ Ingestion complete for {document_name}")
+            # Optional: notify frontend of completion
+            try:
+                from frontend.flask_app import socketio
+                socketio.emit("rag_complete", {"doc_name": document_name}, room=socket_room)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning(f"[RAG-BG] Background ingestion failed: {e}")
+    t = threading.Thread(target=_worker, daemon=True, name=f"rag-{document_name[:20]}")
+    t.start()
+
 
 def rag_ingestion_node(state: LegalState) -> Dict[str, Any]:
-    logger.info("▶ RAG Ingestion Node")
+    logger.info("▶ RAG Ingestion Node (background)")
     try:
-        from rag.pipelines.ingestion_pipeline import ingest_document
         from database.database import get_session
         from database.models import DocumentInProject
 
@@ -284,17 +310,19 @@ def rag_ingestion_node(state: LegalState) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Could not resolve doc_id: {e}")
 
-        ingest_document(
+        # Dispatch to background thread so the worker is freed immediately
+        _run_rag_ingestion_background(
             pdf_path=state["pdf_path"],
             project_id=state["project_id"],
+            document_name=state["document_name"],
             doc_id=doc_id,
             metadata=state.get("metadata") or {},
+            socket_room=state.get("socket_room"),
         )
-        logger.info("✅ RAG ingestion complete")
-        _progress(state.get("socket_room"), 7, "RAG Ingestion", "done")
-        return {"rag_ingested": True}
+        _progress(state.get("socket_room"), 7, "RAG Ingestion", "queued")
+        return {"rag_ingested": True, "rag_queued": True}
     except Exception as e:
-        logger.warning(f"RAG ingestion failed: {e}")
+        logger.warning(f"RAG dispatch failed: {e}")
         return {"rag_ingested": False}
 
 
