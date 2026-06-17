@@ -12,7 +12,10 @@ services:
       - key: DEBUG
         value: "false"
       # Users should add their GROQ_API_KEY in the Render Dashboard for security
-    disk:
-      name: lawcase-data
-      mountPath: /app/LawCaseIntelligence/data
-      sizeGB: 1
+    # NOTE: Persistent disks are only available on paid plans (Starter $7/month+).
+    # On the free plan, data will be lost on every redeploy.
+    # To enable persistent storage, upgrade to Starter plan and uncomment the disk block below:
+    # disk:
+    #   name: lawcase-data
+    #   mountPath: /app/LawCaseIntelligence/data
+    #   sizeGB: 1
