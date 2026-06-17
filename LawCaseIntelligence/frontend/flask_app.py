@@ -417,6 +417,19 @@ def _register_routes(app: Flask) -> None:
     def health():
         return jsonify({"status":"ok","app":"LawCaseIntelligence"})
 
+    @app.route("/admin/reset-keys", methods=["POST"])
+    def reset_keys():
+        """Force-reset the API key manager state. Useful after a rate-limit cooldown expires
+        or when new API keys are added."""
+        try:
+            from backend.services.llm.api_key_manager import get_api_key_manager
+            mgr = get_api_key_manager()
+            mgr.force_reset_all_keys()
+            return jsonify({"success": True, "message": "All API keys reset to active state."})
+        except Exception as e:
+            logger.error(f"reset_keys failed: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
         return send_from_directory(str(UPLOAD_DIR), filename)

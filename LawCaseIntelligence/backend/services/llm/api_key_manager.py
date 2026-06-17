@@ -229,13 +229,37 @@ class APIKeyManager:
         ]
         self._rr_index = 0
 
-        self.load_state()
+        # Check env var to force fresh state (useful after adding new keys or rate-limit reset)
+        force_fresh = os.getenv("RESET_API_KEY_STATE", "false").lower() == "true"
+        if force_fresh:
+            logger.info("[APIKeyManager] RESET_API_KEY_STATE=true — ignoring persisted state")
+            try:
+                if _STATE_FILE.exists():
+                    _STATE_FILE.unlink()
+                    logger.info("[APIKeyManager] Deleted stale state file")
+            except Exception as e:
+                logger.warning(f"[APIKeyManager] Could not delete state file: {e}")
+        else:
+            self.load_state()
         self._try_recover_all()
 
         logger.info(
             f"[APIKeyManager] Initialised — {len(self._pool)} key(s): "
             + ", ".join(kh.key_id for kh in self._pool)
         )
+
+    def force_reset_all_keys(self) -> None:
+        """Manually reset all keys to active state (admin endpoint)."""
+        with self._lock:
+            for kh in self._pool:
+                kh.is_active            = True
+                kh.daily_exhausted      = False
+                kh.daily_exhausted_date = ""
+                kh.cooldown_until       = None
+                kh.cooldown_reason      = ""
+                kh.consecutive_failures = 0
+            self.save_state()
+            logger.info(f"[APIKeyManager] All {len(self._pool)} keys force-reset to active")
 
     # ── Public selection API ────────────────────────────────────────
 
