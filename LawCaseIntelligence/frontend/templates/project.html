@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — LawCaseIntelligence{% endblock %}
+{% block content %}
+
+<style>
+.action-btn {
+  border: none; border-radius: 8px; padding: 7px 13px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: opacity .15s, transform .15s; flex-shrink: 0;
+}
+.action-btn:hover:not(:disabled) { opacity: .85; transform: translateY(-1px); }
+.action-btn:disabled { opacity: .45; cursor: default; }
+.btn-delete  { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+.btn-delete:hover:not(:disabled) { background: #7f1d1d; }
+.btn-resume  { background: #1a2e1a; color: #86efac; border: 1px solid #16a34a; }
+.btn-resume:hover:not(:disabled) { background: #166534; }
+.btn-analyse { background: linear-gradient(135deg,#7c3aed,#5b21b6); color:#fff; border:none; }
+</style>
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
+  <a href="/" style="color:#64748b;text-decoration:none;font-size:14px;">← Projects</a>
+  <span style="color:#334155;">/</span>
+  <h1 style="font-size:22px;font-weight:800;color:#f1f5f9;margin:0;">{{ project.name }}</h1>
+  {% if project.get('our_argument_side') %}
+  <span style="background:#1e3a5f;color:#93c5fd;padding:2px 10px;border-radius:20px;font-size:12px;">
+    {{ project.our_argument_side }}
+  </span>
+  {% endif %}
+</div>
+
+<div style="display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap;">
+  <a href="/project/{{ project.id }}/chat" class="btn-outline" style="text-decoration:none;font-size:13px;">💬 Chat</a>
+</div>
+
+<!-- Upload section -->
+<div class="card" style="padding:24px;margin-bottom:28px;">
+  <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;margin:0 0 16px;">Upload Judgment PDF</h2>
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('pdfInput').click()">
+    <div style="font-size:32px;margin-bottom:8px;">📄</div>
+    <p style="color:#94a3b8;margin:0 0 4px;font-weight:600;">Drop PDF here or click to browse</p>
+    <p style="color:#475569;font-size:13px;margin:0;">Max 100 MB · PDF only · 50–500 pages supported</p>
+    <input type="file" id="pdfInput" accept=".pdf" style="display:none;" onchange="handleFile(this.files[0])"/>
+  </div>
+  <div id="uploadStatus" style="display:none;margin-top:16px;"></div>
+</div>
+
+<!-- Documents list -->
+{% if documents %}
+<div class="card" style="padding:24px;margin-bottom:28px;">
+  <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;margin:0 0 16px;">
+    Documents ({{ documents|length }})
+  </h2>
+  <div style="display:grid;gap:12px;" id="docList">
+    {% for doc in documents %}
+    <div class="card" style="padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;"
+         id="doc-{{ doc.id }}">
+      <div style="flex:1;min-width:0;">
+        <p style="color:#f1f5f9;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          {{ doc.document_name }}
+        </p>
+        <span class="badge-{{ doc.status }}" id="badge-{{ doc.id }}">{{ doc.status }}</span>
+        {% if doc.get('page_count') %}
+        <span style="color:#475569;font-size:12px;margin-left:8px;">{{ doc.page_count }} pages</span>
+        {% endif %}
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;" id="btns-{{ doc.id }}">
+        {% if doc.status in ['queued', 'failed', 'pending'] %}
+        <button class="action-btn btn-analyse" id="analyse-{{ doc.id }}"
+                onclick="processDoc('{{ project.id }}','{{ doc.id }}',this)">
+          ▶ Analyse
+        </button>
+        {% endif %}
+        {% if doc.status in ['processing', 'failed'] %}
+        <button class="action-btn btn-resume"
+                onclick="resumeDoc('{{ project.id }}','{{ doc.id }}',this)">
+          🔄 Resume
+        </button>
+        {% endif %}
+        <button class="action-btn btn-delete"
+                onclick="deleteDoc('{{ project.id }}','{{ doc.id }}','{{ doc.document_name }}',this)">
+          🗑 Delete
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<!-- Empty doc list placeholder so JS can append rows -->
+<div class="card" style="padding:24px;margin-bottom:28px;display:none;" id="docListSection">
+  <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;margin:0 0 16px;">Documents</h2>
+  <div style="display:grid;gap:12px;" id="docList"></div>
+</div>
+{% endif %}
+
+<!-- Progress panel -->
+<div class="card" id="progressPanel" style="display:none;padding:24px;margin-bottom:28px;">
+  <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;margin:0 0 4px;">Processing…</h2>
+  <p style="color:#64748b;font-size:13px;margin:0 0 16px;">
+    Large PDFs may take several minutes (Groq TPM throttle applied automatically).
+  </p>
+  <div class="progress-bar" style="margin-bottom:16px;">
+    <div class="progress-fill" id="progressFill" style="width:0%;"></div>
+  </div>
+  <div id="agentList" style="display:grid;gap:8px;"></div>
+</div>
+
+<!-- Processed Judgments -->
+{% if judgments %}
+<div class="card" style="padding:24px;">
+  <h2 style="font-size:16px;font-weight:700;color:#f1f5f9;margin:0 0 16px;">
+    Processed Judgments ({{ judgments|length }})
+  </h2>
+  <div style="display:grid;gap:12px;" id="judgmentList">
+    {% for j in judgments %}
+    <div class="card" style="padding:16px;" id="judgment-{{ j.id }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <a href="/judgment/{{ j.id }}" style="text-decoration:none;flex:1;min-width:0;">
+          <p style="color:#f1f5f9;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ j.document_name }}
+          </p>
+          <p style="color:#64748b;font-size:13px;margin:4px 0 0;">
+            {{ j.court or 'Court N/A' }} · {{ j.date_of_judgment or 'Date N/A' }}
+          </p>
+        </a>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          {% if j.case_category %}
+          <span style="background:#1e3a5f;color:#93c5fd;padding:2px 8px;border-radius:12px;font-size:12px;">
+            {{ j.case_category }}
+          </span>
+          {% endif %}
+          {% if j.win_indicator %}
+          <span style="background:#14532d;color:#86efac;padding:2px 8px;border-radius:12px;font-size:12px;">
+            {{ j.win_indicator }}
+          </span>
+          {% endif %}
+          <button class="action-btn btn-delete"
+                  onclick="deleteJudgment('{{ project.id }}','{{ j.id }}','{{ j.document_name }}',this)">
+            🗑 Delete
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+const PROJECT_ID = "{{ project.id }}";
+const socket     = io();
+let currentDocId = null;
+
+const AGENTS = [
+  "PDF Extractor","Issue Extraction","Argument Analysis",
+  "Law & Statutes","Precedent Analysis","Reasoning & Verdict","Master Supervisor"
+];
+
+// ── Drag & drop ────────────────────────────────────────────────────
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+function setStatus(html, cls='') {
+  const el = document.getElementById('uploadStatus');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="${cls}" style="padding:12px;border-radius:8px;font-size:14px;">${html}</div>`;
+}
+
+// ── Upload handler ─────────────────────────────────────────────────
+async function handleFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    setStatus('❌ Only PDF files are allowed.', 'flash-error'); return;
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    setStatus('❌ File exceeds 100 MB.', 'flash-error'); return;
+  }
+  setStatus(`⏫ Uploading <b>${file.name}</b>…`, 'badge-processing');
+
+  const fd = new FormData();
+  fd.append('pdf_file', file);
+  const r = await fetch(`/project/${PROJECT_ID}/upload`, {method:'POST', body:fd});
+  const d = await r.json();
+
+  if (!d.success) {
+    const msg = d.duplicate
+      ? `⚠️ ${(d.errors||[]).join(' ')}`
+      : `❌ ${(d.errors||['Upload failed.']).join(' ')}`;
+    setStatus(msg, 'flash-error');
+    // Reset file input so same file can be chosen again after deleting duplicate
+    document.getElementById('pdfInput').value = '';
+    return;
+  }
+
+  setStatus(
+    `✅ Uploaded (${d.pages} pages).
+     <button class="btn-primary" style="margin-left:12px;font-size:13px;padding:6px 14px;"
+       id="bannerAnalyseBtn"
+       onclick="processDocFromBanner('${PROJECT_ID}','${d.document_id}',this)">▶ Analyse Now</button>`,
+    'flash-success'
+  );
+
+  // ── Add row to document list ─────────────────────────────────
+  let list = document.getElementById('docList');
+  if (!list) {
+    // Show the hidden placeholder section
+    const section = document.getElementById('docListSection');
+    if (section) section.style.display = 'block';
+    list = document.getElementById('docList');
+    if (!list) {
+      // Fallback: create section dynamically
+      const newSection = document.createElement('div');
+      newSection.className = 'card';
+      newSection.style     = 'padding:24px;margin-bottom:28px;';
+      newSection.innerHTML = '<h2 style="font-size:16px;font-weight:700;color:#f1f5f9;margin:0 0 16px;">Documents</h2>'
+                           + '<div id="docList" style="display:grid;gap:12px;"></div>';
+      document.getElementById('progressPanel').before(newSection);
+      list = document.getElementById('docList');
+    }
+  }
+
+  const row = document.createElement('div');
+  row.className = 'card';
+  row.id        = `doc-${d.document_id}`;
+  row.style     = 'padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+  row.innerHTML = `
+    <div style="flex:1;min-width:0;">
+      <p style="color:#f1f5f9;font-weight:600;margin:0;">${d.filename}</p>
+      <span class="badge-queued" id="badge-${d.document_id}">queued</span>
+      <span style="color:#475569;font-size:12px;margin-left:8px;">${d.pages} pages</span>
+    </div>
+    <div style="display:flex;gap:8px;" id="btns-${d.document_id}">
+      <button class="action-btn btn-analyse" id="analyse-${d.document_id}"
+        onclick="processDoc('${PROJECT_ID}','${d.document_id}',this)">▶ Analyse</button>
+      <button class="action-btn btn-delete"
+        onclick="deleteDoc('${PROJECT_ID}','${d.document_id}','${d.filename}',this)">🗑 Delete</button>
+    </div>`;
+  list.appendChild(row);
+
+  // Reset file input
+  document.getElementById('pdfInput').value = '';
+}
+
+// ── Process from row Analyse button ────────────────────────────────
+async function processDoc(pid, docId, btn) {
+  btn.disabled    = true;
+  btn.textContent = 'Starting…';
+  currentDocId    = docId;
+  socket.emit('join', {room: socket.id});
+
+  const r = await fetch(`/project/${pid}/process/${docId}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sid: socket.id})
+  });
+  const d = await r.json();
+
+  if (!d.success) {
+    btn.disabled    = false;
+    btn.textContent = '▶ Analyse';
+    alert(d.error || 'Failed to start processing.');
+    return;
+  }
+
+  // Hide Analyse button — update badge to processing
+  btn.style.display = 'none';
+  const badge = document.getElementById(`badge-${docId}`);
+  if (badge) { badge.className = 'badge-processing'; badge.textContent = 'processing'; }
+
+  _showProgressPanel(docId);
+}
+
+// ── Process from upload banner ──────────────────────────────────────
+async function processDocFromBanner(pid, docId, btn) {
+  btn.disabled    = true;
+  btn.textContent = '⏳ Starting…';
+  currentDocId    = docId;
+  socket.emit('join', {room: socket.id});
+
+  const r = await fetch(`/project/${pid}/process/${docId}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sid: socket.id})
+  });
+  const d = await r.json();
+
+  if (!d.success) {
+    btn.disabled    = false;
+    btn.textContent = '▶ Analyse Now';
+    alert(d.error || 'Failed to start processing.');
+    return;
+  }
+
+  btn.textContent = '⏳ Processing…';
+
+  // Also hide the Analyse button on the newly added row
+  const analyseBtn = document.getElementById(`analyse-${docId}`);
+  if (analyseBtn) analyseBtn.style.display = 'none';
+  const badge = document.getElementById(`badge-${docId}`);
+  if (badge) { badge.className = 'badge-processing'; badge.textContent = 'processing'; }
+
+  _showProgressPanel(docId);
+}
+
+// ── Resume ──────────────────────────────────────────────────────────
+async function resumeDoc(pid, docId, btn) {
+  if (!confirm('Resume processing from scratch? Any partial data will be cleared.')) return;
+  btn.disabled    = true;
+  btn.textContent = 'Resuming…';
+  currentDocId    = docId;
+  socket.emit('join', {room: socket.id});
+
+  const r = await fetch(`/project/${pid}/process/${docId}/resume`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sid: socket.id})
+  });
+  const d = await r.json();
+
+  if (!d.success) {
+    btn.disabled    = false;
+    btn.textContent = '🔄 Resume';
+    alert(d.error || 'Failed to resume.');
+    return;
+  }
+
+  const row = document.getElementById(`doc-${docId}`);
+  if (row) {
+    const badge = document.getElementById(`badge-${docId}`);
+    if (badge) { badge.className = 'badge-processing'; badge.textContent = 'processing'; }
+    const analyseBtn = document.getElementById(`analyse-${docId}`);
+    if (analyseBtn) analyseBtn.style.display = 'none';
+  }
+  _showProgressPanel(docId);
+}
+
+// ── Delete Document ─────────────────────────────────────────────────
+async function deleteDoc(pid, docId, docName, btn) {
+  if (!confirm(`Delete "${docName}"?\nThis will remove the PDF, all vectors, and associated judgment records.`)) return;
+  btn.disabled    = true;
+  btn.textContent = 'Deleting…';
+
+  const r = await fetch(`/project/${pid}/document/${docId}/delete`, {method:'DELETE'});
+  const d = await r.json();
+
+  if (!d.success) {
+    btn.disabled    = false;
+    btn.textContent = '🗑 Delete';
+    alert(d.error || 'Delete failed.');
+    return;
+  }
+
+  const row = document.getElementById(`doc-${docId}`);
+  if (row) {
+    row.style.transition = 'opacity .3s';
+    row.style.opacity    = '0';
+    setTimeout(() => row.remove(), 300);
+  }
+}
+
+// ── Delete Judgment ─────────────────────────────────────────────────
+async function deleteJudgment(pid, jId, jName, btn) {
+  if (!confirm(`Delete judgment "${jName}"?\nThis removes the analysis record only.`)) return;
+  btn.disabled    = true;
+  btn.textContent = 'Deleting…';
+
+  const r = await fetch(`/project/${pid}/judgment/${jId}/delete`, {method:'DELETE'});
+  const d = await r.json();
+
+  if (!d.success) {
+    btn.disabled    = false;
+    btn.textContent = '🗑 Delete';
+    alert(d.error || 'Delete failed.');
+    return;
+  }
+
+  const row = document.getElementById(`judgment-${jId}`);
+  if (row) {
+    row.style.transition = 'opacity .3s';
+    row.style.opacity    = '0';
+    setTimeout(() => row.remove(), 300);
+  }
+}
+
+// ── Progress panel ──────────────────────────────────────────────────
+function _showProgressPanel(docId) {
+  const panel = document.getElementById('progressPanel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth', block:'start'});
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('agentList').innerHTML = AGENTS.map((a, i) =>
+    `<div style="display:flex;align-items:center;gap:10px;" id="agent-${i}">
+       <div class="dot dot-waiting" id="dot-${i}"></div>
+       <span style="color:#64748b;font-size:14px;" id="label-${i}">${a}</span>
+     </div>`
+  ).join('');
+  updateAgent(0, 'running', AGENTS[0]);
+}
+
+// ── Socket events ───────────────────────────────────────────────────
+socket.on('agent_progress', data => {
+  const step  = data.step - 1;
+  const total = data.total || AGENTS.length;
+  const pct   = Math.round((data.step / total) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  if (data.status === 'running') {
+    updateAgent(step, 'running', data.agent);
+  } else if (data.status === 'done') {
+    updateAgent(step, 'done', data.agent + (data.info ? ` (${data.info})` : ''));
+    if (step + 1 < AGENTS.length) updateAgent(step + 1, 'running', AGENTS[step + 1]);
+  } else if (data.status === 'error') {
+    updateAgent(step, 'error', data.agent + ' — error');
+  }
+});
+
+socket.on('pipeline_complete', data => {
+  document.getElementById('progressFill').style.width = '100%';
+  AGENTS.forEach((_, i) => updateAgent(i, 'done', AGENTS[i]));
+  setTimeout(() => location.reload(), 1500);
+});
+
+socket.on('pipeline_error', data => {
+  const panel = document.getElementById('progressPanel');
+  panel.insertAdjacentHTML('beforeend',
+    `<div class="flash-error" style="margin-top:16px;">❌ Pipeline error: ${data.error || 'Unknown'}</div>`);
+  const row = document.getElementById(`doc-${data.doc_id}`);
+  if (row) {
+    const badge = document.getElementById(`badge-${data.doc_id}`);
+    if (badge) { badge.className = 'badge-failed'; badge.textContent = 'failed'; }
+    const btns = document.getElementById(`btns-${data.doc_id}`);
+    if (btns && !btns.querySelector('.btn-resume')) {
+      btns.insertAdjacentHTML('afterbegin',
+        `<button class="action-btn btn-resume"
+           onclick="resumeDoc('${PROJECT_ID}','${data.doc_id}',this)">🔄 Resume</button>`
+      );
+    }
+  }
+});
+
+function updateAgent(idx, status, label) {
+  const dot = document.getElementById(`dot-${idx}`);
+  const lbl = document.getElementById(`label-${idx}`);
+  if (!dot || !lbl) return;
+  const colors = {running:'#93c5fd', done:'#86efac', error:'#fca5a5', waiting:'#64748b'};
+  dot.className   = `dot dot-${status}`;
+  lbl.style.color = colors[status] || '#64748b';
+  lbl.textContent = label || AGENTS[idx];
+}
+{% endblock %}

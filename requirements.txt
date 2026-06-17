@@ -1,0 +1,27 @@
+# Core Web Framework
+flask
+flask-socketio
+gevent
+eventlet
+gunicorn
+
+# Database & Vector Store
+sqlalchemy
+chromadb
+
+# LLM & RAG Framework
+langchain
+langchain-community
+langchain-core
+langchain-groq
+
+# Embeddings & Text Processing
+sentence-transformers
+huggingface-hub
+tiktoken
+pymupdf
+
+# Utilities & Config
+python-dotenv
+pydantic
+pydantic-settings

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}LawCaseIntelligence — Legal AI{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;">
+  <div>
+    <h1 style="font-size:28px;font-weight:800;color:#f1f5f9;margin:0;">⚖️ Case Projects</h1>
+    <p style="color:#64748b;margin-top:4px;">AI-powered Indian legal judgment analysis · Groq LLaMA 3.3 + LangGraph</p>
+  </div>
+  <a href="/project/new" class="btn-primary" style="text-decoration:none;">+ New Project</a>
+</div>
+
+<!-- Stats row -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;">
+  <div class="card" style="padding:20px;text-align:center;">
+    <div style="font-size:28px;font-weight:800;color:#16a34a;">{{ projects|length }}</div>
+    <div style="color:#64748b;font-size:14px;">Projects</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center;">
+    <div style="font-size:28px;font-weight:800;color:#22d3ee;">6</div>
+    <div style="color:#64748b;font-size:14px;">AI Agents</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center;">
+    <div style="font-size:28px;font-weight:800;color:#a78bfa;">7</div>
+    <div style="color:#64748b;font-size:14px;">Output Sections</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center;">
+    <div style="font-size:28px;font-weight:800;color:#fb923c;">500+</div>
+    <div style="color:#64748b;font-size:14px;">Pages Supported</div>
+  </div>
+</div>
+
+{% if projects %}
+<div style="display:grid;gap:16px;" id="projectsList">
+  {% for p in projects %}
+  <div class="card" style="padding:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;" id="proj-{{ p.id }}">
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="font-size:18px;font-weight:700;color:#f1f5f9;margin:0;">{{ p.name }}</h2>
+        {% if p.get('our_argument_side') %}
+        <span style="background:#1e3a5f;color:#93c5fd;padding:2px 10px;border-radius:20px;font-size:12px;">{{ p.our_argument_side }}</span>
+        {% endif %}
+      </div>
+      {% if p.get('description') %}
+      <p style="color:#94a3b8;font-size:14px;margin:6px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.description }}</p>
+      {% endif %}
+      <p style="color:#475569;font-size:12px;margin:6px 0 0;">Created {{ p.created_at[:10] if p.created_at else '' }}</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <a href="/project/{{ p.id }}" class="btn-outline" style="text-decoration:none;font-size:13px;">Open →</a>
+      <button onclick="deleteProject('{{ p.id }}', '{{ p.name|replace("'", "\\'") }}', this)"
+              class="btn-outline" style="color:#ef4444;border-color:#450a0a;font-size:13px;">Delete</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="padding:60px;text-align:center;">
+  <div style="font-size:48px;margin-bottom:16px;">⚖️</div>
+  <h2 style="color:#94a3b8;font-size:20px;margin:0 0 8px;">No projects yet</h2>
+  <p style="color:#475569;margin:0 0 24px;">Create a project to start analysing legal judgments with AI.</p>
+  <a href="/project/new" class="btn-primary" style="text-decoration:none;">Create your first project →</a>
+</div>
+{% endif %}
+
+<!-- How it works -->
+<div style="margin-top:48px;">
+  <h2 style="font-size:20px;font-weight:700;color:#f1f5f9;margin-bottom:20px;text-align:center;">How It Works</h2>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+    {% for num,title,desc,color in [
+      ("1","Upload PDF","Upload any Indian court judgment (50–500 pages)","#16a34a"),
+      ("2","6 AI Agents","Parallel extraction: issues, arguments, statutes, precedents","#22d3ee"),
+      ("3","Master Agent","Merges all outputs into validated structured JSON","#a78bfa"),
+      ("4","Case Brief","7-point plain-language brief + trends + RAG chat","#fb923c"),
+    ] %}
+    <div class="card" style="padding:20px;text-align:center;">
+      <div style="width:40px;height:40px;background:{{ color }}22;border:2px solid {{ color }};
+                  border-radius:50%;display:flex;align-items:center;justify-content:center;
+                  font-weight:800;color:{{ color }};margin:0 auto 12px;font-size:18px;">{{ num }}</div>
+      <div style="font-weight:600;color:#f1f5f9;margin-bottom:6px;">{{ title }}</div>
+      <div style="color:#64748b;font-size:13px;">{{ desc }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+async function deleteProject(id, name, btn) {
+  if (!confirm(`Delete project "${name}" and all its data? This cannot be undone.`)) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const r = await fetch(`/project/${id}/delete`, {method:'DELETE'});
+    const d = await r.json();
+    if (d.success) {
+      const el = document.getElementById(`proj-${id}`);
+      if (el) { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(), 300); }
+    } else {
+      btn.disabled = false; btn.textContent = 'Delete';
+      alert('Delete failed: ' + (d.error || 'Unknown error'));
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Delete';
+    alert('Network error. Please try again.');
+  }
+}
+{% endblock %}

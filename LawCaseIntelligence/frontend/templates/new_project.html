@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}New Project — LawCaseIntelligence{% endblock %}
+{% block content %}
+
+<div style="max-width:600px;margin:0 auto;">
+  <a href="/" style="color:#64748b;text-decoration:none;font-size:14px;">← Back to Projects</a>
+  <h1 style="font-size:26px;font-weight:800;color:#f1f5f9;margin:20px 0 8px;">New Project</h1>
+  <p style="color:#64748b;margin:0 0 28px;">Group related case documents together for analysis.</p>
+
+  <div class="card" style="padding:32px;">
+    <form method="POST" id="projectForm" novalidate>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block;color:#94a3b8;font-size:14px;font-weight:600;margin-bottom:8px;">
+          Project Name *
+        </label>
+        <input type="text" name="name" id="name"
+               value="{{ form.get('name','') }}"
+               placeholder="e.g. Tax Evasion Cases 2024" maxlength="100"
+               class="{{ 'error' if errors else '' }}"
+               required autocomplete="off"/>
+        <p style="color:#ef4444;font-size:12px;margin:4px 0 0;" id="nameErr"></p>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block;color:#94a3b8;font-size:14px;font-weight:600;margin-bottom:8px;">
+          Description
+        </label>
+        <textarea name="description" rows="3"
+                  placeholder="Brief context about these cases…"
+                  style="resize:vertical;">{{ form.get('description','') }}</textarea>
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <label style="display:block;color:#94a3b8;font-size:14px;font-weight:600;margin-bottom:8px;">
+          Our Argument Side
+        </label>
+        <select name="our_argument_side">
+          <option value="">— Select (optional) —</option>
+          <option value="Petitioner" {{ 'selected' if form.get('our_argument_side')=='Petitioner' }}>Petitioner</option>
+          <option value="Respondent" {{ 'selected' if form.get('our_argument_side')=='Respondent' }}>Respondent</option>
+        </select>
+        <p style="color:#64748b;font-size:12px;margin:6px 0 0;">Used for win/loss tracking in trends.</p>
+      </div>
+
+      {% if errors %}
+      <div class="flash-error" style="margin-bottom:20px;">
+        {% for e in errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}
+
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn-primary" style="flex:1;" id="submitBtn">
+          Create Project
+        </button>
+        <a href="/" class="btn-outline" style="text-decoration:none;padding:10px 20px;">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+document.getElementById('projectForm').addEventListener('submit', function(e) {
+  const name = document.getElementById('name').value.trim();
+  const err  = document.getElementById('nameErr');
+  if (name.length < 3) {
+    e.preventDefault();
+    err.textContent = 'Name must be at least 3 characters.';
+    document.getElementById('name').classList.add('error');
+    return;
+  }
+  err.textContent = '';
+  document.getElementById('submitBtn').textContent = 'Creating…';
+  document.getElementById('submitBtn').disabled = true;
+});
+{% endblock %}

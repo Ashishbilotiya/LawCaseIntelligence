@@ -1,0 +1,44 @@
+# Environment & Secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Application Data (Uploads, Databases, Vectors)
+LawCaseIntelligence/data/uploads/
+LawCaseIntelligence/data/chroma/
+LawCaseIntelligence/data/checkpoints/
+LawCaseIntelligence/data/exports/
+LawCaseIntelligence/data/processed/
+LawCaseIntelligence/data/reports/
+LawCaseIntelligence/data/lawcase.db
+LawCaseIntelligence/data/system/key_state.json
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.tox/
+.coverage

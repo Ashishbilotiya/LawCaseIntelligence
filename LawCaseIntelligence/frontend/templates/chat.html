@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% block title %}Chat — {{ project.name }}{% endblock %}
+{% block content %}
+
+<style>
+/* ── Layout ─────────────────────────────────────────────────────── */
+.chat-shell {
+  display: flex; flex-direction: column;
+  height: calc(100vh - 190px); max-height: 840px;
+  overflow: hidden;
+}
+
+/* ── Messages ───────────────────────────────────────────────────── */
+#chatHistory {
+  flex: 1; overflow-y: auto; padding: 24px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+#chatHistory::-webkit-scrollbar { width: 4px; }
+#chatHistory::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+/* User bubble */
+.bubble-user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #1e40af, #1e3a5f);
+  border: 1px solid #1e3a5f; border-radius: 16px 16px 4px 16px;
+  padding: 12px 18px; max-width: 76%;
+  color: #e2e8f0; font-size: 14.5px; line-height: 1.7;
+}
+
+/* Bot bubble */
+.bubble-bot {
+  align-self: flex-start;
+  background: #1e293b; border: 1px solid #334155;
+  border-radius: 4px 16px 16px 16px;
+  padding: 16px 20px; max-width: 90%;
+}
+.bubble-bot-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.bot-avatar {
+  width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+.bot-name { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
+.bubble-bot-text {
+  color: #cbd5e1; font-size: 14.5px; line-height: 1.85;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* ── Mode Badges ─────────────────────────────────────────────────── */
+.mode-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px; letter-spacing: 0.03em; margin-bottom: 8px;
+}
+.badge-chat   { background: #1e3a5f; color: #93c5fd; border: 1px solid #1d4ed8; }
+.badge-legal  { background: #1a2e1a; color: #86efac; border: 1px solid #16a34a; }
+.badge-doc    { background: #2d1f3d; color: #c4b5fd; border: 1px solid #7c3aed; }
+
+/* ── Sources ─────────────────────────────────────────────────────── */
+.sources-wrap { margin-top: 12px; padding-top: 12px; border-top: 1px solid #1e293b; }
+.sources-label { font-size: 11px; color: #475569; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.05em; }
+.source-chip {
+  display: inline-block; background: #0f172a; border: 1px solid #334155;
+  color: #64748b; font-size: 11px; padding: 2px 9px;
+  border-radius: 20px; margin: 3px 4px 0 0;
+}
+.queries-wrap { margin-top: 8px; }
+.query-tag {
+  display: inline-block; background: #1e293b; border: 1px solid #2d3748;
+  color: #475569; font-size: 10px; padding: 2px 7px;
+  border-radius: 10px; margin: 2px 3px 0 0; font-style: italic;
+}
+
+/* ── Disclaimer ──────────────────────────────────────────────────── */
+.disclaimer {
+  margin-top: 10px; padding: 8px 12px;
+  background: #1a1f1a; border: 1px solid #166534;
+  border-radius: 8px; color: #4ade80; font-size: 11px; line-height: 1.5;
+}
+
+/* ── Typing indicator ────────────────────────────────────────────── */
+.typing-dot {
+  width: 7px; height: 7px; background: #475569; border-radius: 50%;
+  display: inline-block;
+  animation: typingBounce 1.4s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.16s; }
+.typing-dot:nth-child(3) { animation-delay: 0.32s; }
+@keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-7px)} }
+
+/* ── Suggestion pills ────────────────────────────────────────────── */
+.suggest-strip {
+  background: #0f172a; border-top: 1px solid #1e293b;
+  padding: 10px 20px; display: flex; gap: 8px; flex-wrap: wrap;
+}
+.suggest-pill {
+  background: #1e293b; border: 1px solid #334155; color: #94a3b8;
+  font-size: 12px; padding: 6px 13px; border-radius: 20px;
+  cursor: pointer; transition: all .2s; white-space: nowrap;
+}
+.suggest-pill:hover { border-color: #7c3aed; color: #c4b5fd; background: #1a1330; }
+
+/* ── Input bar ───────────────────────────────────────────────────── */
+.input-bar {
+  display: flex; gap: 10px; align-items: flex-end;
+  background: #1e293b; border-top: 1px solid #334155;
+  padding: 14px 18px;
+}
+.chat-textarea {
+  flex: 1; background: #0f172a; border: 1px solid #334155;
+  color: #e2e8f0; border-radius: 12px; padding: 11px 15px;
+  font-size: 14px; resize: none; outline: none;
+  line-height: 1.6; transition: border .2s; font-family: inherit;
+}
+.chat-textarea:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px #7c3aed18; }
+.chat-textarea::placeholder { color: #475569; }
+.send-btn {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: white; border: none; border-radius: 12px; padding: 11px 20px;
+  font-weight: 700; font-size: 14px; cursor: pointer; flex-shrink: 0;
+  transition: transform .15s, opacity .15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.send-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.send-btn:disabled { opacity: 0.45; cursor: default; }
+.clear-btn {
+  background: none; border: 1px solid #334155; color: #64748b;
+  border-radius: 10px; padding: 8px 12px; font-size: 12px;
+  cursor: pointer; flex-shrink: 0; transition: all .2s;
+}
+.clear-btn:hover { border-color: #ef4444; color: #f87171; }
+
+/* ── Empty state ─────────────────────────────────────────────────── */
+.chat-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+}
+.mode-cards {
+  display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+  max-width: 600px; margin-top: 8px;
+}
+.mode-card {
+  background: #1e293b; border: 1px solid #334155;
+  border-radius: 14px; padding: 16px 20px; max-width: 170px;
+  text-align: center; cursor: pointer; transition: all .2s;
+}
+.mode-card:hover { border-color: #7c3aed; background: #1a1330; }
+.mode-card-icon { font-size: 26px; margin-bottom: 6px; }
+.mode-card-title { color: #e2e8f0; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.mode-card-desc { color: #475569; font-size: 11px; line-height: 1.5; }
+</style>
+
+<!-- Breadcrumb -->
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
+  <a href="/project/{{ project.id }}" style="color:#475569;text-decoration:none;font-size:13px;">← {{ project.name }}</a>
+  <span style="color:#334155;">/</span>
+  <span style="color:#f1f5f9;font-weight:700;font-size:18px;">💬 Case Chat</span>
+</div>
+
+<!-- Chat shell -->
+<div class="card chat-shell">
+
+  <!-- Header -->
+  <div style="background:#0f172a;border-bottom:1px solid #334155;padding:13px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;">
+    <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#4c1d95);display:flex;align-items:center;justify-content:center;font-size:16px;">⚖️</div>
+    <div>
+      <div style="color:#f1f5f9;font-weight:600;font-size:14px;">LawCaseIntelligence</div>
+      <div style="color:#475569;font-size:11px;">Smart chat · Classifies your query automatically</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
+      <!-- Mode legend -->
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="mode-badge badge-chat">💬 Chat</span>
+        <span class="mode-badge badge-legal">⚖️ Legal</span>
+        <span class="mode-badge badge-doc">📄 Document</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:#16a34a;"></div>
+        <span style="color:#4ade80;font-size:11px;">Online</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div id="chatHistory">
+    <!-- Empty / welcome state -->
+    <div id="emptyState" class="chat-empty" {% if chat_history %}style="display:none;"{% endif %}>
+      <div style="font-size:42px;opacity:.35;">⚖️</div>
+      <div style="color:#64748b;font-size:15px;font-weight:600;">Three modes. One interface.</div>
+      <div class="mode-cards">
+        <div class="mode-card" onclick="setQuestion('Hello! Who are you?')">
+          <div class="mode-card-icon">💬</div>
+          <div class="mode-card-title">General Chat</div>
+          <div class="mode-card-desc">Greetings, about the bot, general questions</div>
+        </div>
+        <div class="mode-card" onclick="setQuestion('What is anticipatory bail?')">
+          <div class="mode-card-icon">⚖️</div>
+          <div class="mode-card-title">Legal Assistant</div>
+          <div class="mode-card-desc">Indian law, acts, rights, procedures</div>
+        </div>
+        <div class="mode-card" onclick="setQuestion('What was the final verdict in this case?')">
+          <div class="mode-card-icon">📄</div>
+          <div class="mode-card-title">Document Intelligence</div>
+          <div class="mode-card-desc">Questions about uploaded case documents</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Render server-side history (page load) -->
+    {% for turn in chat_history %}
+      {% if turn.role == 'user' %}
+        <div class="bubble-user">{{ turn.content }}</div>
+      {% else %}
+        <div class="bubble-bot">
+          <div class="bubble-bot-header">
+            <div class="bot-avatar" style="background:linear-gradient(135deg,#7c3aed,#4c1d95);">⚖</div>
+            <span class="bot-name" style="color:#c4b5fd;">LawCaseIntelligence</span>
+          </div>
+          <div class="bubble-bot-text">{{ turn.content }}</div>
+        </div>
+      {% endif %}
+    {% endfor %}
+
+    <!-- Typing indicator -->
+    <div id="typingIndicator" style="display:none;" class="bubble-bot">
+      <div class="bubble-bot-header">
+        <div class="bot-avatar" style="background:linear-gradient(135deg,#7c3aed,#4c1d95);">⚖</div>
+        <span class="bot-name" style="color:#c4b5fd;">LawCaseIntelligence</span>
+        <span style="color:#475569;font-size:11px;margin-left:4px;">thinking…</span>
+      </div>
+      <div style="display:flex;gap:5px;align-items:center;padding:4px 0;">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggestion pills -->
+  <div class="suggest-strip">
+    <button class="suggest-pill" onclick="setQuestion('What are the key legal issues?')">📄 Key issues?</button>
+    <button class="suggest-pill" onclick="setQuestion('What was the final verdict?')">📄 Final verdict?</button>
+    <button class="suggest-pill" onclick="setQuestion('What is Article 21 of the Indian Constitution?')">⚖️ Article 21?</button>
+    <button class="suggest-pill" onclick="setQuestion('What is anticipatory bail?')">⚖️ Anticipatory bail?</button>
+    <button class="suggest-pill" onclick="setQuestion('Hello! What can you do?')">💬 What can you do?</button>
+  </div>
+
+  <!-- Input bar -->
+  <div class="input-bar">
+    <button class="clear-btn" onclick="clearHistory()" title="Clear conversation">🗑</button>
+    <textarea id="questionInput" class="chat-textarea" rows="2"
+              placeholder="Ask anything — legal question, case query, or just say hi… (Ctrl+Enter to send)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+      <span id="sendLabel">Ask</span>
+      <span style="font-size:15px;">→</span>
+    </button>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+const PROJECT_ID   = "{{ project.id }}";
+const ASK_URL      = `/project/${PROJECT_ID}/chat/ask`;
+const CLEAR_URL    = `/project/${PROJECT_ID}/chat/clear`;
+const history_el   = document.getElementById('chatHistory');
+const typingEl     = document.getElementById('typingIndicator');
+const inputEl      = document.getElementById('questionInput');
+const sendBtn      = document.getElementById('sendBtn');
+const sendLabel    = document.getElementById('sendLabel');
+const emptyState   = document.getElementById('emptyState');
+
+// ── Scroll ────────────────────────────────────────────────────────
+function scrollBottom() {
+  history_el.scrollTop = history_el.scrollHeight;
+}
+scrollBottom();
+
+// ── Auto-resize textarea ──────────────────────────────────────────
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 130) + 'px';
+});
+
+// ── Ctrl+Enter ────────────────────────────────────────────────────
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendMessage();
+});
+
+// ── Set suggestion ────────────────────────────────────────────────
+function setQuestion(q) {
+  inputEl.value = q;
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 130) + 'px';
+  inputEl.focus();
+}
+
+// ── Append user bubble ────────────────────────────────────────────
+function appendUser(text) {
+  const el = document.createElement('div');
+  el.className = 'bubble-user';
+  el.textContent = text;
+  history_el.insertBefore(el, typingEl);
+  scrollBottom();
+}
+
+// ── Badge HTML ────────────────────────────────────────────────────
+const BADGE_CSS = {
+  'CONVERSATIONAL':    'badge-chat',
+  'GENERAL_LEGAL':     'badge-legal',
+  'DOCUMENT_SPECIFIC': 'badge-doc',
+};
+
+function badgeHtml(mode, badge) {
+  const css = BADGE_CSS[mode] || 'badge-doc';
+  return `<div class="mode-badge ${css}">${escHtml(badge)}</div>`;
+}
+
+// ── Append bot bubble ─────────────────────────────────────────────
+function appendBot(data) {
+  const el = document.createElement('div');
+  el.className = 'bubble-bot';
+
+  const avatarStyle = 'background:linear-gradient(135deg,#7c3aed,#4c1d95);';
+  let html = `
+    <div class="bubble-bot-header">
+      <div class="bot-avatar" style="${avatarStyle}">⚖</div>
+      <span class="bot-name" style="color:#c4b5fd;">LawCaseIntelligence</span>
+    </div>
+    ${badgeHtml(data.mode, data.badge)}
+    <div class="bubble-bot-text">${escHtml(data.answer)}</div>
+  `;
+
+  // Disclaimer (GENERAL_LEGAL)
+  if (data.disclaimer) {
+    html += `<div class="disclaimer">${escHtml(data.disclaimer)}</div>`;
+  }
+
+  // Sources (DOCUMENT_SPECIFIC)
+  if (data.sources && data.sources.length > 0) {
+    html += `<div class="sources-wrap">
+      <div class="sources-label">📎 SOURCES</div>`;
+    data.sources.forEach(s => {
+      const label = s.doc ? `${s.doc} · p.${s.pages || '?'}` : `Score: ${s.score}`;
+      html += `<span class="source-chip">${escHtml(label)}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // Search queries used (DOCUMENT_SPECIFIC)
+  if (data.search_queries && data.search_queries.length > 0) {
+    html += `<div class="queries-wrap">`;
+    data.search_queries.forEach(q => {
+      html += `<span class="query-tag">🔍 ${escHtml(q)}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  el.innerHTML = html;
+  history_el.insertBefore(el, typingEl);
+  scrollBottom();
+}
+
+// ── Error bubble ──────────────────────────────────────────────────
+function appendError(msg) {
+  const el = document.createElement('div');
+  el.className = 'bubble-bot';
+  el.innerHTML = `
+    <div class="bubble-bot-header">
+      <div class="bot-avatar" style="background:#7f1d1d;">⚠</div>
+      <span class="bot-name" style="color:#f87171;">Error</span>
+    </div>
+    <div class="bubble-bot-text" style="color:#f87171;">${escHtml(msg)}</div>
+  `;
+  history_el.insertBefore(el, typingEl);
+  scrollBottom();
+}
+
+// ── Main send ─────────────────────────────────────────────────────
+async function sendMessage() {
+  const question = inputEl.value.trim();
+  if (!question) return;
+
+  // Hide empty state
+  if (emptyState) emptyState.style.display = 'none';
+
+  // Lock UI
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  sendBtn.disabled = true;
+  sendLabel.textContent = '…';
+
+  appendUser(question);
+
+  // Show typing
+  typingEl.style.display = 'flex';
+  scrollBottom();
+
+  try {
+    const res = await fetch(ASK_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question}),
+    });
+    const data = await res.json();
+
+    typingEl.style.display = 'none';
+
+    if (data.error) {
+      appendError(data.error);
+    } else {
+      appendBot(data);
+    }
+  } catch (err) {
+    typingEl.style.display = 'none';
+    appendError('Network error: ' + err.message);
+  } finally {
+    sendBtn.disabled = false;
+    sendLabel.textContent = 'Ask';
+    inputEl.focus();
+    scrollBottom();
+  }
+}
+
+// ── Clear history ─────────────────────────────────────────────────
+async function clearHistory() {
+  if (!confirm('Clear conversation history?')) return;
+  await fetch(CLEAR_URL, {method: 'POST'});
+  // Remove all bubbles except empty state & typing indicator
+  Array.from(history_el.children).forEach(el => {
+    if (el.id !== 'typingIndicator' && el.id !== 'emptyState') el.remove();
+  });
+  if (emptyState) emptyState.style.display = 'flex';
+}
+
+// ── HTML escape ───────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/\n/g,'<br>');
+}
+{% endblock %}

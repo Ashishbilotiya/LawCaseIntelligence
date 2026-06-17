@@ -1,0 +1,597 @@
+{% extends "base.html" %}
+{% block title %}{{ judgment.document_name }} — LawCaseIntelligence{% endblock %}
+{% block content %}
+
+<style>
+  /* ── Variables ── */
+  :root {
+    --surf: #1e293b; --bg: #0f172a; --bdr: #334155;
+    --blue: #3b82f6; --blue-dim: #1e3a5f;
+    --green: #16a34a; --green-lt: #86efac; --green-dim: #14532d;
+    --red: #ef4444; --red-dim: #450a0a;
+    --text: #f1f5f9; --muted: #94a3b8; --dim: #475569;
+  }
+
+  /* ── Header card ── */
+  .hdr-card {
+    background: var(--surf); border: 1px solid var(--bdr); border-radius: 14px;
+    padding: 24px 28px; margin-bottom: 6px;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  }
+  .hdr-label { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+  .hdr-title { color: var(--text); font-size: 22px; font-weight: 800; line-height: 1.35; margin: 0 0 12px; }
+  .hdr-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--bg); border: 1px solid var(--bdr);
+    color: var(--muted); font-size: 12px; padding: 4px 12px; border-radius: 20px; margin-right: 6px;
+  }
+  .verdict-box {
+    background: var(--bg); border: 1px solid var(--bdr); border-radius: 12px;
+    padding: 16px 20px; text-align: center; min-width: 130px; flex-shrink: 0;
+  }
+  .verdict-label { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  .verdict-value { color: var(--text); font-size: 18px; font-weight: 700; }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: flex; gap: 4px; background: var(--surf);
+    border: 1px solid var(--bdr); border-radius: 12px;
+    padding: 6px; margin-bottom: 24px; overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--muted); background: transparent;
+    white-space: nowrap; transition: all .2s;
+  }
+  .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.05); }
+  .tab-btn.active {
+    background: var(--green); color: #fff; font-weight: 600;
+    box-shadow: 0 2px 8px #16a34a44;
+  }
+  .tab-btn .tab-icon { font-size: 14px; }
+
+  /* ── Tab panels ── */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Section headers ── */
+  .sec-hdr {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--blue-dim);
+  }
+  .sec-icon {
+    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .sec-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .sec-badge {
+    margin-left: auto; font-size: 11px; padding: 2px 10px; border-radius: 20px;
+  }
+
+  /* ── Summary ── */
+  .sum-row {
+    display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #1e3a5f;
+  }
+  .sum-row:last-child { border-bottom: none; }
+  .sum-num {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: white;
+  }
+  .sum-text { color: #cbd5e1; line-height: 1.75; font-size: 14.5px; padding-top: 3px; }
+
+  /* ── Issue ── */
+  .issue-primary {
+    background: linear-gradient(135deg, #0f2744, var(--bg));
+    border: 1px solid var(--blue-dim); border-left: 4px solid var(--blue);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 14px;
+    color: #93c5fd; font-weight: 600; font-size: 15px; line-height: 1.6;
+  }
+  .issue-bg { color: var(--dim); font-size: 13px; margin: 0 0 14px; line-height: 1.6; }
+  .sub-item {
+    display: flex; gap: 10px; padding: 8px 12px;
+    background: var(--bg); border-radius: 8px; margin-bottom: 6px; align-items: flex-start;
+  }
+  .sub-dot { width: 6px; height: 6px; background: var(--blue); border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .sub-text { color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+
+  /* ── Arguments ── */
+  .args-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media(max-width:700px){ .args-grid { grid-template-columns: 1fr; } }
+  .arg-row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #1e3a5f; align-items: flex-start; }
+  .arg-row:last-of-type { border-bottom: none; }
+  .arg-dot-b { width: 5px; height: 5px; background: var(--blue); border-radius: 50%; margin-top: 7px; flex-shrink: 0; }
+  .arg-dot-r { width: 5px; height: 5px; background: var(--red);  border-radius: 50%; margin-top: 7px; flex-shrink: 0; }
+  .cit-chip {
+    display: inline-block; background: var(--bg); border: 1px solid var(--bdr);
+    color: var(--dim); font-size: 11.5px; padding: 3px 10px; border-radius: 20px; margin: 3px 3px 0 0;
+  }
+
+  /* ── Statutes ── */
+  .stat-card {
+    background: #0a1628; border: 1px solid var(--blue-dim); border-radius: 10px;
+    padding: 14px 18px; display: flex; gap: 14px; align-items: flex-start;
+  }
+  .stat-act { color: var(--green-lt); font-weight: 700; font-size: 14px; }
+  .stat-sec { color: var(--dim); font-size: 13px; margin: 2px 0; }
+  .stat-desc { color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.5; }
+  .stat-rel {
+    display: inline-block; background: #0a2010; border: 1px solid #166534;
+    color: #4ade80; font-size: 11.5px; padding: 2px 10px; border-radius: 20px; margin-top: 6px;
+  }
+
+  /* ── Precedents ── */
+  .prec-card {
+    background: #0a1628; border: 1px solid var(--blue-dim); border-radius: 10px; padding: 14px 18px;
+  }
+  .prec-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .prec-name { color: #93c5fd; font-weight: 600; font-size: 14px; line-height: 1.4; }
+  .prec-year {
+    background: var(--bg); border: 1px solid var(--bdr);
+    color: var(--dim); font-size: 12px; padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+  }
+  .prec-cit { color: var(--dim); font-size: 12px; margin: 4px 0; }
+  .prec-rel { color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
+  .star-on { color: #fbbf24; } .star-off { color: #334155; }
+
+  /* ── Decision ── */
+  .decision-card {
+    background: linear-gradient(135deg, #0a1f0f, var(--bg));
+    border: 1px solid #166534; border-radius: 14px; padding: 28px;
+  }
+  .outcome-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--green-dim); border: 1px solid var(--green);
+    color: var(--green-lt); font-weight: 700; font-size: 16px;
+    padding: 8px 22px; border-radius: 30px; margin-bottom: 18px;
+  }
+  .relief-box {
+    background: #0a1628; border: 1px solid var(--blue-dim);
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 18px;
+  }
+  .relief-lbl { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .relief-val { color: #cbd5e1; font-size: 14px; line-height: 1.6; }
+  .reasoning-txt { color: var(--muted); font-size: 14px; line-height: 1.85; margin-bottom: 22px; }
+  .find-item {
+    display: flex; gap: 10px; padding: 9px 13px;
+    background: #0a130a; border: 1px solid var(--green-dim); border-radius: 8px; margin-bottom: 6px;
+    align-items: flex-start;
+  }
+  .find-check { color: var(--green); font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .find-text { color: #a7f3d0; font-size: 13.5px; line-height: 1.6; }
+
+  /* ── Insights panel ── */
+  .insight-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 18px; }
+  @media(max-width:700px){ .insight-grid { grid-template-columns: 1fr 1fr; } }
+  .insight-tile {
+    background: var(--bg); border: 1px solid var(--bdr); border-radius: 12px;
+    padding: 16px; text-align: center;
+  }
+  .insight-val { font-size: 28px; font-weight: 800; color: var(--green-lt); line-height: 1; margin-bottom: 4px; }
+  .insight-lbl { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+</style>
+
+<!-- ── Breadcrumb ── -->
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+  <a href="/project/{{ judgment.project_id }}" style="color:#475569;text-decoration:none;font-size:13px;">← Back to Project</a>
+</div>
+
+<!-- ── Header Card ── -->
+<div class="hdr-card">
+  <div style="flex:1;min-width:0;">
+    <div class="hdr-label">Case Analysis</div>
+    <h1 class="hdr-title">⚖️ {{ judgment.document_name }}</h1>
+    <div>
+      {% if judgment.court %}
+      <span class="hdr-chip">🏛 {{ judgment.court }}</span>
+      {% endif %}
+      {% if judgment.case_category %}
+      <span class="hdr-chip" style="color:#a78bfa;border-color:#4c1d95;background:#1e0a3c;">🗂 {{ judgment.case_category }}</span>
+      {% endif %}
+      {% if judgment.date_of_judgment %}
+      <span class="hdr-chip">📅 {{ judgment.date_of_judgment }}</span>
+      {% endif %}
+      {% if judgment.case_number %}
+      <span class="hdr-chip">📁 {{ judgment.case_number }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="verdict-box">
+    <div class="verdict-label">Verdict</div>
+    <div class="verdict-value" style="margin-bottom:8px;">
+      {% set wi = judgment.win_indicator or 'Neutral' %}
+      {% if 'allow' in wi.lower() or 'win' in wi.lower() or 'favour' in wi.lower() %}
+        <span style="color:#86efac;">{{ wi }}</span>
+      {% elif 'dismiss' in wi.lower() or 'fail' in wi.lower() %}
+        <span style="color:#fca5a5;">{{ wi }}</span>
+      {% else %}
+        <span style="color:#fcd34d;">{{ wi }}</span>
+      {% endif %}
+    </div>
+    {% set wi = judgment.win_indicator or 'Neutral' %}
+    {% if 'allow' in wi.lower() or 'win' in wi.lower() %}
+      <span class="badge-done">Allowed</span>
+    {% elif 'dismiss' in wi.lower() %}
+      <span class="badge-failed">Dismissed</span>
+    {% else %}
+      <span class="badge-queued">Neutral</span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Tab Bar ── -->
+<div class="tab-bar" id="tabBar">
+  <button class="tab-btn active" onclick="switchTab('summary',this)">
+    <span class="tab-icon">📋</span> Summary
+  </button>
+  <button class="tab-btn" onclick="switchTab('issue',this)">
+    <span class="tab-icon">⚖️</span> The Issue
+  </button>
+  <button class="tab-btn" onclick="switchTab('arguments',this)">
+    <span class="tab-icon">💬</span> Arguments
+  </button>
+  <button class="tab-btn" onclick="switchTab('laws',this)">
+    <span class="tab-icon">📜</span> Laws Used
+  </button>
+  <button class="tab-btn" onclick="switchTab('precedents',this)">
+    <span class="tab-icon">🏛️</span> Past Cases
+  </button>
+  <button class="tab-btn" onclick="switchTab('decision',this)">
+    <span class="tab-icon">✅</span> Decision
+  </button>
+  <button class="tab-btn" onclick="switchTab('insights',this)">
+    <span class="tab-icon">💡</span> Insights
+  </button>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 1 — SUMMARY
+     ════════════════════════════════════════════ -->
+<div id="tab-summary" class="tab-panel active">
+
+  <!-- What is this case about + Outcome side by side -->
+  {% set reason = judgment.get('reasoning') or {} %}
+  <div style="display:grid;grid-template-columns:1fr 280px;gap:14px;margin-bottom:20px;" class="summary-top-grid">
+    <div class="card" style="padding:22px;border-left:3px solid #16a34a;">
+      <div style="color:#16a34a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;">🚀 What is this case about?</div>
+      <div style="color:#cbd5e1;font-size:15px;line-height:1.75;">
+        {{ judgment.get('issue',{}).get('primary_issue') or judgment.case_summary[:200] or 'N/A' }}
+      </div>
+    </div>
+    <div class="card" style="padding:22px;text-align:center;">
+      <div style="color:#475569;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;">≡ Outcome</div>
+      <div style="font-size:22px;font-weight:800;margin-bottom:4px;
+        {% if 'allow' in (judgment.win_indicator or '')|lower %}color:#86efac;
+        {% elif 'dismiss' in (judgment.win_indicator or '')|lower %}color:#fca5a5;
+        {% else %}color:#fcd34d;{% endif %}">
+        {{ judgment.win_indicator or 'N/A' }}
+      </div>
+      <div style="color:#64748b;font-size:13px;">{{ reason.get('relief_granted','') or 'See Decision tab' }}</div>
+    </div>
+  </div>
+
+  <!-- Plain language summary -->
+  {% if judgment.case_summary %}
+  <div class="card" style="padding:24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#16a34a,#15803d);
+                  display:flex;align-items:center;justify-content:center;font-size:18px;">🧠</div>
+      <div>
+        <div style="color:#f1f5f9;font-weight:700;font-size:15px;">Plain Language Summary</div>
+        <div style="color:#475569;font-size:12px;">Written for non-lawyers · Every point explained simply · Generated by AI</div>
+      </div>
+      <span style="margin-left:auto;background:#0a1f0f;border:1px solid #166534;color:#4ade80;font-size:11px;padding:3px 10px;border-radius:20px;">AI Generated</span>
+    </div>
+    {% set paras = judgment.case_summary.split('\n') %}
+    {% for p in paras %}{% if p.strip() %}
+    <div class="sum-row">
+      <div class="sum-num">{{ loop.index }}</div>
+      <div class="sum-text">{{ p.strip() | regex_replace('^\\d+\\.\\s*', '') }}</div>
+    </div>
+    {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 2 — THE ISSUE
+     ════════════════════════════════════════════ -->
+{% set issue = judgment.get('issue') or {} %}
+<div id="tab-issue" class="tab-panel">
+  <div class="card" style="padding:26px;">
+    <div class="sec-hdr">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#1e3a5f,#0f172a);">⚖️</div>
+      <span class="sec-title">Legal Issue</span>
+    </div>
+    {% if issue.get('primary_issue') %}
+    <div class="issue-primary">{{ issue.primary_issue }}</div>
+    {% endif %}
+    {% if issue.get('case_background') %}
+    <p class="issue-bg">{{ issue.case_background }}</p>
+    {% endif %}
+    {% if issue.get('sub_issues') %}
+    <div style="color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Sub-Issues</div>
+    {% for s in issue.sub_issues %}
+    <div class="sub-item">
+      <div class="sub-dot"></div>
+      <div class="sub-text">{{ s }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if not issue.get('primary_issue') %}
+    <div style="color:#475569;text-align:center;padding:40px 0;">No issue data extracted</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 3 — ARGUMENTS
+     ════════════════════════════════════════════ -->
+{% set pet = judgment.get('petitioner_arguments') or {} %}
+{% set res = judgment.get('respondent_arguments') or {} %}
+<div id="tab-arguments" class="tab-panel">
+  <div class="args-grid">
+    <!-- Petitioner -->
+    <div class="card" style="padding:22px;border-left:3px solid #3b82f6;">
+      <div class="sec-hdr" style="border-color:#1e3a5f;">
+        <div class="sec-icon" style="background:linear-gradient(135deg,#1e3a5f,#0f172a);font-size:18px;">🔵</div>
+        <span class="sec-title">Petitioner</span>
+      </div>
+      {% for a in pet.get('key_arguments') or [] %}
+      <div class="arg-row">
+        <div class="arg-dot-b"></div>
+        <div style="color:#cbd5e1;font-size:13.5px;line-height:1.7;">{{ a }}</div>
+      </div>
+      {% endfor %}
+      {% if pet.get('citations') %}
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #1e3a5f;">
+        <div style="color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Citations</div>
+        {% for c in pet.citations %}<span class="cit-chip">{{ c }}</span>{% endfor %}
+      </div>
+      {% endif %}
+      {% if not pet.get('key_arguments') %}
+      <div style="color:#475569;text-align:center;padding:30px 0;">No petitioner data</div>
+      {% endif %}
+    </div>
+
+    <!-- Respondent -->
+    <div class="card" style="padding:22px;border-left:3px solid #ef4444;">
+      <div class="sec-hdr" style="border-color:#2d0a0a;">
+        <div class="sec-icon" style="background:linear-gradient(135deg,#450a0a,#0f172a);font-size:18px;">🔴</div>
+        <span class="sec-title">Respondent</span>
+      </div>
+      {% for a in res.get('key_arguments') or [] %}
+      <div class="arg-row" style="border-color:#2d0a0a;">
+        <div class="arg-dot-r"></div>
+        <div style="color:#cbd5e1;font-size:13.5px;line-height:1.7;">{{ a }}</div>
+      </div>
+      {% endfor %}
+      {% if res.get('citations') %}
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #2d0a0a;">
+        <div style="color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Citations</div>
+        {% for c in res.citations %}<span class="cit-chip">{{ c }}</span>{% endfor %}
+      </div>
+      {% endif %}
+      {% if not res.get('key_arguments') %}
+      <div style="color:#475569;text-align:center;padding:30px 0;">No respondent data</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 4 — LAWS USED
+     ════════════════════════════════════════════ -->
+{% set stat = judgment.get('statutes') or {} %}
+<div id="tab-laws" class="tab-panel">
+  <div class="card" style="padding:26px;">
+    <div class="sec-hdr">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#14532d,#0f172a);">📜</div>
+      <span class="sec-title">Laws & Statutes Applied</span>
+      {% if stat.get('statutes') %}
+      <span class="sec-badge" style="background:#0a1f0f;border:1px solid #166534;color:#4ade80;">
+        {{ stat.statutes|length }} statute{{ 's' if stat.statutes|length != 1 }}
+      </span>
+      {% endif %}
+    </div>
+    {% if stat.get('statutes') %}
+    <div style="display:grid;gap:10px;">
+      {% for s in stat.statutes %}
+      <div class="stat-card">
+        <div style="font-size:20px;">📗</div>
+        <div style="flex:1;">
+          <div class="stat-act">{{ s.get('act','') }}</div>
+          {% if s.get('section') %}<div class="stat-sec">Section {{ s.section }}</div>{% endif %}
+          {% if s.get('description') %}<div class="stat-desc">{{ s.description }}</div>{% endif %}
+          {% if s.get('relevance') %}<span class="stat-rel">→ {{ s.relevance }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="color:#475569;text-align:center;padding:40px 0;">No statute data extracted</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 5 — PAST CASES / PRECEDENTS
+     ════════════════════════════════════════════ -->
+{% set prec = judgment.get('precedents') or {} %}
+<div id="tab-precedents" class="tab-panel">
+  <div class="card" style="padding:26px;">
+    <div class="sec-hdr">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#1e3a5f,#0f172a);">🏛️</div>
+      <span class="sec-title">Precedents Cited</span>
+      {% if prec.get('precedents') %}
+      <span class="sec-badge" style="background:#0f2744;border:1px solid #1e3a5f;color:#93c5fd;">
+        {{ prec.precedents|length }} case{{ 's' if prec.precedents|length != 1 }}
+      </span>
+      {% endif %}
+    </div>
+    {% if prec.get('precedents') %}
+    <div style="display:grid;gap:10px;">
+      {% for p in prec.precedents %}
+      <div class="prec-card">
+        <div class="prec-hdr">
+          <div class="prec-name">{{ p.get('case_name','') }}</div>
+          {% if p.get('year') %}<span class="prec-year">{{ p.year }}</span>{% endif %}
+        </div>
+        {% if p.get('citation') %}<div class="prec-cit">{{ p.citation }}</div>{% endif %}
+        {% if p.get('importance_score') %}
+        <div style="margin:4px 0;">
+          {% for i in range(5) %}
+            <span class="{{ 'star-on' if i < p.importance_score|int else 'star-off' }}">★</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if p.get('relevance') %}<div class="prec-rel">{{ p.relevance }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="color:#475569;text-align:center;padding:40px 0;">No precedent data extracted</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 6 — FINAL DECISION
+     ════════════════════════════════════════════ -->
+{% set reason = judgment.get('reasoning') or {} %}
+<div id="tab-decision" class="tab-panel">
+  <div class="decision-card">
+    <div class="sec-hdr" style="border-color:#166534;">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#14532d,#0f172a);">⚡</div>
+      <span class="sec-title">Final Decision & Reasoning</span>
+    </div>
+    {% if reason.get('outcome') %}
+    <div><span class="outcome-pill">✅ {{ reason.outcome }}</span></div>
+    {% endif %}
+    {% if reason.get('relief_granted') %}
+    <div class="relief-box">
+      <div class="relief-lbl">Relief Granted</div>
+      <div class="relief-val">{{ reason.relief_granted }}</div>
+    </div>
+    {% endif %}
+    {% if reason.get('judicial_reasoning') %}
+    <p class="reasoning-txt">{{ reason.judicial_reasoning }}</p>
+    {% endif %}
+    {% if reason.get('key_findings') %}
+    <div style="color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Key Findings</div>
+    {% for f in reason.key_findings %}
+    <div class="find-item">
+      <div class="find-check">✓</div>
+      <div class="find-text">{{ f }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if not reason %}
+    <div style="color:#475569;text-align:center;padding:40px 0;">No reasoning data extracted</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 7 — INSIGHTS
+     ════════════════════════════════════════════ -->
+<div id="tab-insights" class="tab-panel">
+  <!-- Stats row -->
+  <div class="insight-grid" style="margin-bottom:20px;">
+    <div class="insight-tile">
+      <div class="insight-val">{{ (judgment.get('statutes') or {}).get('statutes', [])|length }}</div>
+      <div class="insight-lbl">Statutes Applied</div>
+    </div>
+    <div class="insight-tile">
+      <div class="insight-val">{{ (judgment.get('precedents') or {}).get('precedents', [])|length }}</div>
+      <div class="insight-lbl">Precedents Cited</div>
+    </div>
+    <div class="insight-tile">
+      <div class="insight-val">{{ (judgment.get('issue') or {}).get('sub_issues', [])|length }}</div>
+      <div class="insight-lbl">Sub-Issues Identified</div>
+    </div>
+    <div class="insight-tile">
+      <div class="insight-val">{{ (judgment.get('petitioner_arguments') or {}).get('key_arguments', [])|length }}</div>
+      <div class="insight-lbl">Petitioner Arguments</div>
+    </div>
+    <div class="insight-tile">
+      <div class="insight-val">{{ (judgment.get('respondent_arguments') or {}).get('key_arguments', [])|length }}</div>
+      <div class="insight-lbl">Respondent Arguments</div>
+    </div>
+    <div class="insight-tile">
+      <div class="insight-val">{{ (judgment.get('reasoning') or {}).get('key_findings', [])|length }}</div>
+      <div class="insight-lbl">Key Findings</div>
+    </div>
+  </div>
+
+  <!-- Frequently cited sections -->
+  {% if judgment.get('frequently_cited_sections') %}
+  <div class="card" style="padding:24px;margin-bottom:16px;">
+    <div class="sec-hdr">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#1e3a5f,#0f172a);">📊</div>
+      <span class="sec-title">Frequently Cited Sections</span>
+    </div>
+    <div style="display:grid;gap:8px;">
+      {% for s in judgment.frequently_cited_sections %}
+      <div style="display:flex;align-items:center;gap:12px;background:#0f172a;border-radius:8px;padding:10px 14px;">
+        <div style="color:#86efac;font-weight:600;font-size:13px;flex:1;">{{ s.get('section', s) if s is mapping else s }}</div>
+        {% if s is mapping and s.get('count') %}
+        <div style="background:#0a1f0f;border:1px solid #166534;color:#4ade80;font-size:11px;padding:2px 10px;border-radius:20px;">
+          ×{{ s.count }}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Case metadata summary -->
+  <div class="card" style="padding:24px;">
+    <div class="sec-hdr">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#14532d,#0f172a);">📎</div>
+      <span class="sec-title">Case Metadata</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      {% for label, value in [
+        ('Court', judgment.court),
+        ('Case Number', judgment.case_number),
+        ('Date', judgment.date_of_judgment),
+        ('Category', judgment.case_category),
+        ('Win Indicator', judgment.win_indicator),
+        ('Document', judgment.document_name),
+      ] %}
+      <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:10px 14px;">
+        <div style="color:#475569;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">{{ label }}</div>
+        <div style="color:#cbd5e1;font-size:13px;font-weight:500;">{{ value or 'N/A' }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<style>
+  @media(max-width:640px){
+    .summary-top-grid { grid-template-columns: 1fr !important; }
+  }
+</style>
+
+<script>
+function switchTab(name, btn) {
+  // Hide all panels
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  // Deactivate all buttons
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  // Show target
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  // Scroll tab into view on mobile
+  btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: lawcase-intelligence
+    env: docker
+    plan: free
+    region: oregon # Change this to your preferred region
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEBUG
+        value: "false"
+      # Users should add their GROQ_API_KEY in the Render Dashboard for security
+    disk:
+      name: lawcase-data
+      mountPath: /app/LawCaseIntelligence/data
+      sizeGB: 1

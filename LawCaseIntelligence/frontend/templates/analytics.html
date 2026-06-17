@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Analytics — LawCaseIntelligence{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="lci-page-title mb-0"><i class="bi bi-bar-chart text-brand me-2"></i>Legal Analytics</h1>
+    <p class="text-muted small">Trends across all processed judgments</p>
+  </div>
+</div>
+
+<!-- KPI Row -->
+<div class="row g-3 mb-4">
+  {% for icon, label, val, color in [
+    ("bi-file-earmark-text", "Total Cases", analytics.total_cases, "brand"),
+    ("bi-book", "Unique Categories", analytics.categories|length, "info"),
+    ("bi-diagram-3", "Top Precedents", top_precedents|length, "purple"),
+    ("bi-trophy", "Petitioner Wins", analytics.win_indicators.get('Petitioner-favourable',0), "warning"),
+  ] %}
+  <div class="col-6 col-md-3">
+    <div class="lci-stat-card lci-stat-{{ color }}">
+      <i class="bi {{ icon }} lci-stat-icon"></i>
+      <div class="lci-stat-value">{{ val }}</div>
+      <div class="lci-stat-label">{{ label }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Charts Row 1 -->
+<div class="row g-4 mb-4">
+  <div class="col-md-6">
+    <div class="lci-card p-4">
+      <h5 class="lci-card-label mb-3">Case Categories</h5>
+      <canvas id="categoryChart" height="220"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="lci-card p-4">
+      <h5 class="lci-card-label mb-3">Outcome Distribution</h5>
+      <canvas id="outcomeChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="row g-4 mb-4">
+  <div class="col-md-6">
+    <div class="lci-card p-4">
+      <h5 class="lci-card-label mb-3">Win Indicators</h5>
+      <canvas id="winChart" height="220"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="lci-card p-4">
+      <h5 class="lci-card-label mb-3">Top Courts</h5>
+      <canvas id="courtChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Top Precedents Table -->
+{% if top_precedents %}
+<div class="lci-card p-4 mb-4">
+  <h5 class="lci-card-label mb-3"><i class="bi bi-diagram-3 me-2"></i>Most Cited Precedents</h5>
+  <div class="table-responsive">
+    <table class="table lci-table">
+      <thead><tr><th>#</th><th>Case Name</th><th>Citation</th><th>Court</th><th>Year</th><th>Count</th></tr></thead>
+      <tbody>
+        {% for p in top_precedents %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td class="text-white fw-semibold">{{ p.case_name }}</td>
+          <td class="text-muted small">{{ p.citation or '—' }}</td>
+          <td class="text-muted small">{{ p.court or '—' }}</td>
+          <td class="text-muted">{{ p.year or '—' }}</td>
+          <td><span class="lci-count-badge">{{ p.count }}×</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const COLORS = ['#16a34a','#22d3ee','#a78bfa','#fb923c','#f472b6','#34d399','#60a5fa','#fbbf24'];
+const opts = (title) => ({
+  responsive: true,
+  plugins: {
+    legend: { labels: { color:'#94a3b8', font:{size:11} } },
+    title: { display:false }
+  },
+  scales: title ? {
+    x: { ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'} },
+    y: { ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'} }
+  } : {}
+});
+
+{% set cats = analytics.get('categories',{}) %}
+{% set outcomes = analytics.get('outcomes',{}) %}
+{% set wins = analytics.get('win_indicators',{}) %}
+{% set courts = analytics.get('courts',{}) %}
+
+new Chart(document.getElementById('categoryChart'), {
+  type: 'doughnut',
+  data: { labels: {{ cats.keys()|list|tojson }}, datasets: [{ data: {{ cats.values()|list|tojson }}, backgroundColor: COLORS, borderWidth:0 }] },
+  options: opts()
+});
+
+new Chart(document.getElementById('outcomeChart'), {
+  type: 'bar',
+  data: { labels: {{ outcomes.keys()|list|tojson }}, datasets: [{ label:'Cases', data: {{ outcomes.values()|list|tojson }}, backgroundColor:'#16a34a', borderRadius:6 }] },
+  options: opts(true)
+});
+
+new Chart(document.getElementById('winChart'), {
+  type: 'pie',
+  data: { labels: {{ wins.keys()|list|tojson }}, datasets: [{ data: {{ wins.values()|list|tojson }}, backgroundColor: ['#16a34a','#ef4444','#94a3b8','#fbbf24'], borderWidth:0 }] },
+  options: opts()
+});
+
+new Chart(document.getElementById('courtChart'), {
+  type: 'bar',
+  data: { labels: {{ courts.keys()|list|tojson }}, datasets: [{ label:'Cases', data: {{ courts.values()|list|tojson }}, backgroundColor:'#22d3ee', borderRadius:6 }] },
+  options: opts(true)
+});
+</script>
+{% endblock %}
