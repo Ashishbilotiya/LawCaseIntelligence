@@ -80,8 +80,13 @@ def get_embeddings() -> BGEEmbeddings:
     Return the singleton BGEEmbeddings instance.
     Cached after first call — safe to call from anywhere.
     """
-    from backend.config.settings import get_settings
-    settings = get_settings()
-    model_name = getattr(settings, "bge_model_name", "BAAI/bge-large-en-v1.5")
+    import os
+    # Read directly from env var first (works in both dev and production)
+    model_name = os.getenv("EMBEDDING_MODEL")
+    if not model_name:
+        # Fallback to settings
+        from backend.config.settings import get_settings
+        settings = get_settings()
+        model_name = getattr(settings, "bge_model_name", "BAAI/bge-large-en-v1.5")
     logger.info(f"Initialising embeddings: {model_name}")
     return BGEEmbeddings(model_name=model_name)
