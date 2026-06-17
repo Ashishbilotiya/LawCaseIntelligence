@@ -248,19 +248,6 @@ class APIKeyManager:
             + ", ".join(kh.key_id for kh in self._pool)
         )
 
-    def force_reset_all_keys(self) -> None:
-        """Manually reset all keys to active state (admin endpoint)."""
-        with self._lock:
-            for kh in self._pool:
-                kh.is_active            = True
-                kh.daily_exhausted      = False
-                kh.daily_exhausted_date = ""
-                kh.cooldown_until       = None
-                kh.cooldown_reason      = ""
-                kh.consecutive_failures = 0
-            self.save_state()
-            logger.info(f"[APIKeyManager] All {len(self._pool)} keys force-reset to active")
-
     # ── Public selection API ────────────────────────────────────────
 
     def get_next_key(self) -> KeyHealth:
