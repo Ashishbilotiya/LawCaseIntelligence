@@ -13,10 +13,10 @@ services:
         value: "false"
       - key: ASYNC_MODE
         value: gevent
-      # Use bge-small to fit within Render's free tier 512 MB RAM limit
-      # Upgrade to bge-large on Starter plan for better quality
+      # Use smallest possible model to fit within Render's free tier 512 MB RAM limit
+      # Upgrade to bge-large on Starter plan ($7/mo, 2 GB RAM) for better quality
       - key: EMBEDDING_MODEL
-        value: BAAI/bge-small-en-v1.5
+        value: sentence-transformers/all-MiniLM-L6-v2
       # Users should add their GROQ_API_KEY in the Render Dashboard for security
     # NOTE: Persistent disks are only available on paid plans (Starter $7/month+).
     # On the free plan, data will be lost on every redeploy.

@@ -36,11 +36,15 @@ class BGEEmbeddings(EmbeddingProvider):
 
     def __init__(self, model_name: str = None) -> None:
         from langchain_community.embeddings import HuggingFaceEmbeddings
-        # Auto-select smaller model for low-memory environments (e.g., Render free tier)
+        # Auto-select smallest model for low-memory environments (Render free tier = 512 MB)
         if model_name is None:
             import os
-            # If EMBEDDING_MODEL env var is set, use it; otherwise default to large
-            model_name = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
+            # Default: sentence-transformers/all-MiniLM-L6-v2 (~80 MB, fastest, fits 512 MB)
+            # Alternatives:
+            #   BAAI/bge-small-en-v1.5  (~130 MB, 384 dim, good quality)
+            #   BAAI/bge-base-en-v1.5   (~440 MB, 768 dim, better)
+            #   BAAI/bge-large-en-v1.5  (~1.3 GB, 1024 dim, best — needs 2 GB+ RAM)
+            model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
         self._model_name = model_name
         self._model = HuggingFaceEmbeddings(
             model_name=model_name,
@@ -63,12 +67,12 @@ class BGEEmbeddings(EmbeddingProvider):
 
     @property
     def dimension(self) -> int:
-        # bge-small = 384, bge-base = 768, bge-large = 1024
-        if "small" in self._model_name:
-            return 384
-        elif "base" in self._model_name:
+        # all-MiniLM-L6-v2 = 384, bge-small = 384, bge-base = 768, bge-large = 1024
+        if "base" in self._model_name:
             return 768
-        return 1024
+        elif "large" in self._model_name:
+            return 1024
+        return 384  # default for small models including all-MiniLM-L6-v2
 
     def __repr__(self) -> str:
         return f"BGEEmbeddings(model={self._model_name})"
@@ -87,6 +91,6 @@ def get_embeddings() -> BGEEmbeddings:
         # Fallback to settings
         from backend.config.settings import get_settings
         settings = get_settings()
-        model_name = getattr(settings, "bge_model_name", "BAAI/bge-large-en-v1.5")
+        model_name = getattr(settings, "bge_model_name", "sentence-transformers/all-MiniLM-L6-v2")
     logger.info(f"Initialising embeddings: {model_name}")
     return BGEEmbeddings(model_name=model_name)
