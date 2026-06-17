@@ -34,8 +34,13 @@ class BGEEmbeddings(EmbeddingProvider):
     Downloads once to ~/.cache/huggingface and is cached locally.
     """
 
-    def __init__(self, model_name: str = "BAAI/bge-large-en-v1.5") -> None:
+    def __init__(self, model_name: str = None) -> None:
         from langchain_community.embeddings import HuggingFaceEmbeddings
+        # Auto-select smaller model for low-memory environments (e.g., Render free tier)
+        if model_name is None:
+            import os
+            # If EMBEDDING_MODEL env var is set, use it; otherwise default to large
+            model_name = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
         self._model_name = model_name
         self._model = HuggingFaceEmbeddings(
             model_name=model_name,
@@ -58,6 +63,11 @@ class BGEEmbeddings(EmbeddingProvider):
 
     @property
     def dimension(self) -> int:
+        # bge-small = 384, bge-base = 768, bge-large = 1024
+        if "small" in self._model_name:
+            return 384
+        elif "base" in self._model_name:
+            return 768
         return 1024
 
     def __repr__(self) -> str:

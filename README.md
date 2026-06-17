@@ -121,6 +121,16 @@ LawCaseIntelligence/
 | `ASYNC_MODE` | ✅ Yes (Prod) | Set to `gevent` for production |
 | `PORT` | ❌ No | Defaults to `5001` (dev) / `10000` (Render) |
 | `LOG_LEVEL` | ❌ No | `INFO`, `DEBUG`, `WARNING`, `ERROR` |
+| `EMBEDDING_MODEL` | ❌ No | Defaults to `BAAI/bge-large-en-v1.5`. Set to `BAAI/bge-small-en-v1.5` for low-memory environments (Render free tier: 512 MB) |
+
+### Memory Optimization (Render Free Tier)
+
+If you're on Render's free plan (512 MB RAM), the default `bge-large` model (~1.3 GB) will cause OOM crashes during RAG ingestion. To fix this, set this environment variable in Render:
+
+- **Key:** `EMBEDDING_MODEL`
+- **Value:** `BAAI/bge-small-en-v1.5`
+
+The `bge-small` model is only ~130 MB and fits comfortably within the free tier memory limit. Embedding quality is slightly lower but still very good for legal document retrieval.
 
 ---
 
