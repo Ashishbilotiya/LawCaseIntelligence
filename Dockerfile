@@ -4,7 +4,6 @@ FROM python:3.10-slim
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -24,5 +23,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 10000
 
 # Use gunicorn with the gevent worker for SocketIO support
-# We point to LawCaseIntelligence/app.py and use the 'app' instance
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--worker-class", "gevent", "--workers", "1", "--timeout", "300", "LawCaseIntelligence.app:app"]
