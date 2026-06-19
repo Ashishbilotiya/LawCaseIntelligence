@@ -15,7 +15,8 @@ workers = 1
 worker_connections = 1000
 
 # Timeout generous for PDF pipeline (6-agent LLM calls can take 3-5 min)
-timeout      = 300
+# Embedding model loading can take 60-90s on first request; chat retrieval 30-60s
+timeout      = 600
 keepalive    = 5
 
 # Logging — stdout/stderr for Render log drain

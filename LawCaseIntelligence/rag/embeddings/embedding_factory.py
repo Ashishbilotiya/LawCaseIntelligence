@@ -46,24 +46,35 @@ class BGEEmbeddings(EmbeddingProvider):
             #   BAAI/bge-large-en-v1.5  (~1.3 GB, 1024 dim, best — needs 2 GB+ RAM)
             model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
         self._model_name = model_name
-        self._model = HuggingFaceEmbeddings(
-            model_name=model_name,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
-        logger.info(f"BGEEmbeddings ready: {model_name}")
+        self._model = None  # lazy-load on first use to avoid memory spikes at init
+        logger.info(f"BGEEmbeddings configured: {model_name} (lazy-load on first use)")
+
+    def _ensure_loaded(self):
+        """Lazy-load the model only when first needed (saves memory + faster startup)."""
+        if self._model is None:
+            from langchain_community.embeddings import HuggingFaceEmbeddings
+            import gc
+            gc.collect()  # free unused memory before loading
+            logger.info(f"BGEEmbeddings loading model: {self._model_name}")
+            self._model = HuggingFaceEmbeddings(
+                model_name=self._model_name,
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+            logger.info(f"BGEEmbeddings ready: {self._model_name}")
+        return self._model
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         if not texts:
             return []
-        return self._model.embed_documents(texts)
+        return self._ensure_loaded().embed_documents(texts)
 
     def embed_query(self, text: str) -> List[float]:
-        return self._model.embed_query(text)
+        return self._ensure_loaded().embed_query(text)
 
     def get_langchain_embeddings(self):
         """Return the raw LangChain HuggingFaceEmbeddings object for ChromaDB."""
-        return self._model
+        return self._ensure_loaded()
 
     @property
     def dimension(self) -> int:

@@ -23,4 +23,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 10000
 
 # Use gunicorn with the gevent worker for SocketIO support
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--worker-class", "gevent", "--workers", "1", "--timeout", "300", "LawCaseIntelligence.app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--worker-class", "gevent", "--workers", "1", "--timeout", "600", "--graceful-timeout", "120", "LawCaseIntelligence.app:app"]
